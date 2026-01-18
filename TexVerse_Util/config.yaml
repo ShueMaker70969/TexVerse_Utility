@@ -2,7 +2,7 @@
 mode: highest_available
 fixed_resolution: 1024
 output_dir: downloaded_models
-metadata_path: ../TexVerse/metadata/metadata.json
+metadata_path: metadata.json
 
 layouts:
   texverse_1k:

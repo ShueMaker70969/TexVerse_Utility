@@ -1,49 +1,100 @@
-from huggingface_hub import hf_hub_download
+from pathlib import Path
+import argparse
+import sys
 
-def download_first_n_models(pbr_list_path, n=5):
-    repo_id = "YiboZhang2001/TexVerse-1K"
-    repo_type = "dataset"
+from download_model_by_id import (
+    TexVerseDownloader,
+    normalize_model_id,
+)
 
-    # 1) Read only the first n lines (model IDs)
-    model_ids = []
-    with open(pbr_list_path, "r") as f:
-        for _ in range(n):
-            line = f.readline()
-            if not line:
-                break  # end of file
-            model_ids.append(line.strip())
 
-    print(f"Processing {len(model_ids)} model IDs...")
+def download_n_models(
+    model_ids: list[str],
+    *,
+    config_path: Path,
+    output_dir: Path,
+    mode: str | None = None,
+    resolution: int | None = None,
+) -> None:
+    """
+    Download multiple TexVerse models efficiently.
 
-    # 2) Try downloading each
-    for model_id in model_ids:
-        print(f"\n➡️ Searching model: {model_id}")
-        found = False
+    Metadata is loaded ONCE and reused.
+    """
+    downloader = TexVerseDownloader(config_path)
 
-        for i in range(89):  # buckets 000-000 → 000-088
-            bucket = f"000-{i:03d}"
-            path = f"glbs/glbs_1k/{bucket}/{model_id}_1024.glb"
+    # Override output directory programmatically
+    downloader.output_dir = output_dir.resolve()
+    downloader.output_dir.mkdir(parents=True, exist_ok=True)
 
-            try:
-                local_path = hf_hub_download(
-                    repo_id=repo_id,
-                    repo_type=repo_type,
-                    filename=path,
-                    local_dir="downloaded_models",
-                    # you can omit local_dir_use_symlinks now
-                )
-                print(f"✅ Downloaded: {local_path}")
-                found = True
-                break  # stop searching buckets
+    for idx, raw_id in enumerate(model_ids, start=1):
+        try:
+            model_id = normalize_model_id(raw_id)
+            print(f"[{idx}/{len(model_ids)}] Downloading {model_id} ...")
 
-            except Exception:
-                pass  # try next bucket
+            path = downloader.download(
+                model_id,
+                mode=mode,
+                resolution=resolution,
+            )
 
-        if not found:
-            print(f"❌ Not found in TexVerse-1K: {model_id}")
+            print(f"  -> saved to {path}")
+
+        except Exception as exc:
+            print(f"[warn] Failed to download {raw_id}: {exc}", file=sys.stderr)
+
+
+def build_arg_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Download N TexVerse models using metadata-aware downloader."
+    )
+
+    parser.add_argument(
+        "model_ids",
+        nargs="+",
+        help="List of TexVerse model IDs (or text containing them).",
+    )
+
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=Path("config.yaml"),
+        help="Path to config.yaml (default: ./config.yaml).",
+    )
+
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=Path("downloaded_models"),
+        help="Target directory for downloaded models.",
+    )
+
+    parser.add_argument(
+        "--mode",
+        choices=["highest_available", "fixed"],
+        help="Download mode override.",
+    )
+
+    parser.add_argument(
+        "--resolution",
+        type=int,
+        help="Resolution to use when mode=fixed (e.g. 1024).",
+    )
+
+    return parser
+
+
+def main() -> None:
+    args = build_arg_parser().parse_args()
+
+    download_n_models(
+        model_ids=args.model_ids,
+        config_path=args.config.resolve(),
+        output_dir=args.output_dir,
+        mode=args.mode,
+        resolution=args.resolution,
+    )
+
 
 if __name__ == "__main__":
-    download_first_n_models(
-        r"C:\Users\Shuma\Desktop\Synced_folder\texverse_utility\TexVerse\metadata\TexVerse_pbr_id_list.txt",
-        n=6
-    )
+    main()
