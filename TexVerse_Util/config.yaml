@@ -3,6 +3,7 @@ mode: highest_available
 fixed_resolution: 1024
 output_dir: downloaded_models
 metadata_path: metadata.json
+textdata_path: ../TexVerse/metadata/TexVerse_pbr_id_list.txt
 
 layouts:
   texverse_1k:
